@@ -30,6 +30,7 @@ EXTRA_MIME = {
     ".avif": "image/avif",
     ".svg": "image/svg+xml",
 }
+mimetypes.init()
 
 
 class R2UploaderGUI:
@@ -152,6 +153,8 @@ class R2UploaderGUI:
             )
             with open(path, "w", encoding="utf-8") as f:
                 json.dump(self._form_payload(include_secret=include_secret), f, indent=2, ensure_ascii=False)
+            if include_secret:
+                os.chmod(path, 0o600)
             self.log_line(f"Configuración guardada en: {path}")
         except Exception as e:
             messagebox.showerror("Error", f"No se pudo guardar la configuración:\n{e}")
