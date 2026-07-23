@@ -158,15 +158,15 @@ class R2UploaderGUI:
             with open(path, "w", encoding="utf-8") as f:
                 json.dump(self._form_payload(include_secret=include_secret), f, indent=2, ensure_ascii=False)
             if include_secret:
-                if os.name == "nt":
-                    messagebox.showwarning(
-                        "Aviso de seguridad",
-                        "Windows puede no aplicar permisos restrictivos equivalentes a 0600.\n"
-                        "Evita compartir este archivo y guárdalo en una ubicación segura.",
-                    )
                 try:
                     os.chmod(path, 0o600)
                 except OSError:
+                    if os.name == "nt":
+                        messagebox.showwarning(
+                            "Aviso de seguridad",
+                            "Windows puede no aplicar permisos restrictivos equivalentes a 0600.\n"
+                            "Evita compartir este archivo y guárdalo en una ubicación segura.",
+                        )
                     messagebox.showwarning(
                         "Aviso de seguridad",
                         "No fue posible aplicar permisos restrictivos al archivo guardado.\n"
