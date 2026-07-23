@@ -158,9 +158,20 @@ class R2UploaderGUI:
             with open(path, "w", encoding="utf-8") as f:
                 json.dump(self._form_payload(include_secret=include_secret), f, indent=2, ensure_ascii=False)
             if include_secret:
+                if os.name == "nt":
+                    messagebox.showwarning(
+                        "Aviso de seguridad",
+                        "Windows puede no aplicar permisos restrictivos equivalentes a 0600.\n"
+                        "Evita compartir este archivo y guárdalo en una ubicación segura.",
+                    )
                 try:
                     os.chmod(path, 0o600)
                 except OSError:
+                    messagebox.showwarning(
+                        "Aviso de seguridad",
+                        "No fue posible aplicar permisos restrictivos al archivo guardado.\n"
+                        "Revísalo manualmente antes de compartirlo.",
+                    )
                     self.log_line("Aviso: no fue posible aplicar permisos restrictivos al archivo guardado.")
             self.log_line(f"Configuración guardada en: {path}")
         except Exception as e:
@@ -286,7 +297,7 @@ class R2UploaderGUI:
                 extension = Path(full_path).suffix.lower()
                 content_type = EXTRA_MIME.get(extension)
                 if not content_type:
-                    guessed_type = mimetypes.guess_type(full_path)[0]
+                    guessed_type, _ = mimetypes.guess_type(full_path)
                     content_type = guessed_type or "application/octet-stream"
                 client.upload_file(full_path, bucket, key_name, ExtraArgs={"ContentType": content_type})
                 self.progress["value"] = i
