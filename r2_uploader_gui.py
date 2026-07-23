@@ -171,7 +171,7 @@ class R2UploaderGUI:
             self.endpoint_var.set(data.get("endpoint", ""))
             self.key_var.set(data.get("access_key_id", ""))
             if "secret_access_key" in data and data.get("secret_access_key"):
-                self.secret_var.set(data.get("secret_access_key", ""))
+                self.secret_var.set(data["secret_access_key"])
             self.log_line(f"Configuración cargada desde: {path}")
         except Exception as e:
             messagebox.showerror("Error", f"No se pudo cargar la configuración:\n{e}")
@@ -268,8 +268,10 @@ class R2UploaderGUI:
             for i, (full_path, key_name) in enumerate(to_upload, start=1):
                 self.log_line(f"[{i}/{total}] Subiendo {key_name}")
                 extension = Path(full_path).suffix.lower()
-                guessed_type = mimetypes.guess_type(full_path)[0]
-                content_type = EXTRA_MIME.get(extension) or guessed_type or "application/octet-stream"
+                content_type = EXTRA_MIME.get(extension)
+                if not content_type:
+                    guessed_type = mimetypes.guess_type(full_path)[0]
+                    content_type = guessed_type or "application/octet-stream"
                 client.upload_file(full_path, bucket, key_name, ExtraArgs={"ContentType": content_type})
                 self.progress["value"] = i
                 self.root.update_idletasks()
