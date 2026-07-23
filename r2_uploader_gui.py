@@ -125,13 +125,13 @@ class R2UploaderGUI:
         if folder:
             self.folder_var.set(folder)
 
-    def _form_payload(self):
+    def _form_payload(self, include_secret=False):
         return {
             "folder": self.folder_var.get(),
             "bucket": self.bucket_var.get(),
             "endpoint": self.endpoint_var.get(),
             "access_key_id": self.key_var.get(),
-            "secret_access_key": self.secret_var.get(),
+            "secret_access_key": self.secret_var.get() if include_secret else "",
         }
 
     def save_form_data(self):
@@ -143,8 +143,13 @@ class R2UploaderGUI:
         if not path:
             return
         try:
+            include_secret = messagebox.askyesno(
+                "Guardar credenciales",
+                "¿Deseas guardar también la Secret Access Key?\n"
+                "Si eliges \"Sí\", se guardará en texto plano dentro del archivo.",
+            )
             with open(path, "w", encoding="utf-8") as f:
-                json.dump(self._form_payload(), f, indent=2, ensure_ascii=False)
+                json.dump(self._form_payload(include_secret=include_secret), f, indent=2, ensure_ascii=False)
             self.log_line(f"Configuración guardada en: {path}")
         except Exception as e:
             messagebox.showerror("Error", f"No se pudo guardar la configuración:\n{e}")
@@ -260,7 +265,7 @@ class R2UploaderGUI:
             for i, (full_path, key_name) in enumerate(to_upload, start=1):
                 self.log_line(f"[{i}/{total}] Subiendo {key_name}")
                 extension = Path(full_path).suffix.lower()
-                content_type = EXTRA_MIME.get(extension) or mimetypes.guess_type(full_path)[0] or "application/octet-stream"
+                content_type = (EXTRA_MIME.get(extension) or mimetypes.guess_type(full_path)[0]) or "application/octet-stream"
                 client.upload_file(full_path, bucket, key_name, ExtraArgs={"ContentType": content_type})
                 self.progress["value"] = i
                 self.root.update_idletasks()
