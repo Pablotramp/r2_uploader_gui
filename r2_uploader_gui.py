@@ -30,6 +30,12 @@ EXTRA_MIME = {
     ".avif": "image/avif",
     ".svg": "image/svg+xml",
 }
+ICON_BLOCKS = [
+    ("#0f131a", (0, 0, 16, 16)),
+    ("#2f81f7", (2, 2, 14, 14)),
+    ("#0f131a", (5, 4, 11, 12)),
+    ("#58a6ff", (7, 6, 13, 10)),
+]
 mimetypes.init()
 
 
@@ -66,10 +72,8 @@ class R2UploaderGUI:
 
     def _set_app_icon(self):
         self._app_icon = tk.PhotoImage(width=16, height=16)
-        self._app_icon.put("#0f131a", to=(0, 0, 16, 16))
-        self._app_icon.put("#2f81f7", to=(2, 2, 14, 14))
-        self._app_icon.put("#0f131a", to=(5, 4, 11, 12))
-        self._app_icon.put("#58a6ff", to=(7, 6, 13, 10))
+        for color, coords in ICON_BLOCKS:
+            self._app_icon.put(color, to=coords)
         self.root.iconphoto(True, self._app_icon)
 
     def _build(self):
@@ -154,7 +158,10 @@ class R2UploaderGUI:
             with open(path, "w", encoding="utf-8") as f:
                 json.dump(self._form_payload(include_secret=include_secret), f, indent=2, ensure_ascii=False)
             if include_secret:
-                os.chmod(path, 0o600)
+                try:
+                    os.chmod(path, 0o600)
+                except OSError:
+                    self.log_line("Aviso: no fue posible aplicar permisos restrictivos al archivo guardado.")
             self.log_line(f"Configuración guardada en: {path}")
         except Exception as e:
             messagebox.showerror("Error", f"No se pudo guardar la configuración:\n{e}")
@@ -174,7 +181,13 @@ class R2UploaderGUI:
             self.endpoint_var.set(data.get("endpoint", ""))
             self.key_var.set(data.get("access_key_id", ""))
             if "secret_access_key" in data and data["secret_access_key"]:
-                self.secret_var.set(data["secret_access_key"])
+                use_secret = messagebox.askyesno(
+                    "Cargar credenciales",
+                    "El archivo contiene Secret Access Key guardada.\n"
+                    "¿Deseas cargarla en el formulario?",
+                )
+                if use_secret:
+                    self.secret_var.set(data["secret_access_key"])
             self.log_line(f"Configuración cargada desde: {path}")
         except Exception as e:
             messagebox.showerror("Error", f"No se pudo cargar la configuración:\n{e}")
