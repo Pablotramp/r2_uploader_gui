@@ -170,7 +170,7 @@ class R2UploaderGUI:
             self.bucket_var.set(data.get("bucket", ""))
             self.endpoint_var.set(data.get("endpoint", ""))
             self.key_var.set(data.get("access_key_id", ""))
-            if "secret_access_key" in data and data.get("secret_access_key"):
+            if "secret_access_key" in data and data["secret_access_key"]:
                 self.secret_var.set(data["secret_access_key"])
             self.log_line(f"Configuración cargada desde: {path}")
         except Exception as e:
