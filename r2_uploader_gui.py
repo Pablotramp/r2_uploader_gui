@@ -1,4 +1,6 @@
 import os
+import json
+import mimetypes
 import threading
 from pathlib import Path
 import tkinter as tk
@@ -8,12 +10,40 @@ import boto3
 from botocore.config import Config
 from botocore.exceptions import ClientError
 
+EXTRA_MIME = {
+    ".m3u8": "application/vnd.apple.mpegurl",
+    ".ts": "video/mp2t",
+    ".m4s": "video/iso.segment",
+    ".m4a": "audio/mp4",
+    ".mp4": "video/mp4",
+    ".mp3": "audio/mpeg",
+    ".aac": "audio/aac",
+    ".ogg": "audio/ogg",
+    ".opus": "audio/ogg; codecs=opus",
+    ".flac": "audio/flac",
+    ".wav": "audio/wav",
+    ".json": "application/json",
+    ".jpg": "image/jpeg",
+    ".jpeg": "image/jpeg",
+    ".png": "image/png",
+    ".webp": "image/webp",
+    ".avif": "image/avif",
+    ".svg": "image/svg+xml",
+}
+ICON_BLOCKS = [
+    ("#0f131a", (0, 0, 16, 16)),
+    ("#2f81f7", (2, 2, 14, 14)),
+    ("#0f131a", (5, 4, 11, 12)),
+    ("#58a6ff", (7, 6, 13, 10)),
+]
+mimetypes.init()
+
 
 class R2UploaderGUI:
     def __init__(self, root):
         self.root = root
-        self.root.title("R2 Uploader (Cloudflare)")
-        self.root.geometry("820x560")
+        self.root.title("R2 Uploader Studio")
+        self.root.geometry("900x620")
 
         self.folder_var = tk.StringVar()
         self.bucket_var = tk.StringVar()
@@ -21,46 +51,157 @@ class R2UploaderGUI:
         self.key_var = tk.StringVar()
         self.secret_var = tk.StringVar()
 
+        self._setup_theme()
+        self._set_app_icon()
         self._build()
+
+    def _setup_theme(self):
+        style = ttk.Style()
+        style.theme_use("clam")
+        self.root.configure(bg="#0f131a")
+
+        style.configure("App.TFrame", background="#0f131a")
+        style.configure("App.TLabel", background="#0f131a", foreground="#d9e0ea", font=("Segoe UI", 11))
+        style.configure("Title.TLabel", background="#0f131a", foreground="#66b6ff", font=("Segoe UI Semibold", 26))
+        style.configure("TEntry", fieldbackground="#141a23", foreground="#edf2f7", insertcolor="#edf2f7")
+        style.configure("TButton", background="#1a2230", foreground="#eaf1fb", borderwidth=0, focusthickness=0)
+        style.map("TButton", background=[("active", "#243247")])
+        style.configure("Accent.TButton", background="#2ea043", foreground="#ffffff")
+        style.map("Accent.TButton", background=[("active", "#3ab551")])
+        style.configure("TProgressbar", troughcolor="#1b2330", background="#4f8cff")
+
+    def _set_app_icon(self):
+        self._app_icon = tk.PhotoImage(width=16, height=16)
+        for color, coords in ICON_BLOCKS:
+            self._app_icon.put(color, to=coords)
+        self.root.iconphoto(True, self._app_icon)
 
     def _build(self):
         pad = {"padx": 8, "pady": 6}
 
-        frm = ttk.Frame(self.root)
+        frm = ttk.Frame(self.root, style="App.TFrame")
         frm.pack(fill="both", expand=True)
 
-        ttk.Label(frm, text="Carpeta local").grid(row=0, column=0, sticky="w", **pad)
-        ttk.Entry(frm, textvariable=self.folder_var, width=72).grid(row=0, column=1, sticky="we", **pad)
-        ttk.Button(frm, text="Seleccionar carpeta", command=self.pick_folder).grid(row=0, column=2, **pad)
+        ttk.Label(frm, text="R2 Uploader Studio", style="Title.TLabel").grid(row=0, column=0, columnspan=3, sticky="w", **pad)
 
-        ttk.Label(frm, text="Bucket").grid(row=1, column=0, sticky="w", **pad)
-        ttk.Entry(frm, textvariable=self.bucket_var, width=40).grid(row=1, column=1, sticky="w", **pad)
+        ttk.Label(frm, text="Carpeta local", style="App.TLabel").grid(row=1, column=0, sticky="w", **pad)
+        ttk.Entry(frm, textvariable=self.folder_var, width=72).grid(row=1, column=1, sticky="we", **pad)
+        ttk.Button(frm, text="Seleccionar carpeta", command=self.pick_folder).grid(row=1, column=2, **pad)
 
-        ttk.Label(frm, text="Endpoint R2").grid(row=2, column=0, sticky="w", **pad)
-        ttk.Entry(frm, textvariable=self.endpoint_var, width=72).grid(row=2, column=1, columnspan=2, sticky="we", **pad)
+        ttk.Label(frm, text="Bucket", style="App.TLabel").grid(row=2, column=0, sticky="w", **pad)
+        ttk.Entry(frm, textvariable=self.bucket_var, width=40).grid(row=2, column=1, sticky="w", **pad)
 
-        ttk.Label(frm, text="Access Key ID").grid(row=3, column=0, sticky="w", **pad)
-        ttk.Entry(frm, textvariable=self.key_var, width=50).grid(row=3, column=1, sticky="w", **pad)
+        ttk.Label(frm, text="Endpoint R2", style="App.TLabel").grid(row=3, column=0, sticky="w", **pad)
+        ttk.Entry(frm, textvariable=self.endpoint_var, width=72).grid(row=3, column=1, columnspan=2, sticky="we", **pad)
 
-        ttk.Label(frm, text="Secret Access Key").grid(row=4, column=0, sticky="w", **pad)
-        ttk.Entry(frm, textvariable=self.secret_var, width=50, show="*").grid(row=4, column=1, sticky="w", **pad)
+        ttk.Label(frm, text="Access Key ID", style="App.TLabel").grid(row=4, column=0, sticky="w", **pad)
+        ttk.Entry(frm, textvariable=self.key_var, width=50).grid(row=4, column=1, sticky="w", **pad)
 
-        self.upload_btn = ttk.Button(frm, text="Subir", command=self.start_upload)
-        self.upload_btn.grid(row=5, column=0, sticky="w", padx=8, pady=10)
+        ttk.Label(frm, text="Secret Access Key", style="App.TLabel").grid(row=5, column=0, sticky="w", **pad)
+        ttk.Entry(frm, textvariable=self.secret_var, width=50, show="*").grid(row=5, column=1, sticky="w", **pad)
+
+        ttk.Button(frm, text="Guardar como…", command=self.save_form_data).grid(row=6, column=0, sticky="w", padx=8, pady=10)
+        ttk.Button(frm, text="Cargar configuración…", command=self.load_form_data).grid(row=6, column=1, sticky="w", padx=8, pady=10)
+        self.upload_btn = ttk.Button(frm, text="Subir", style="Accent.TButton", command=self.start_upload)
+        self.upload_btn.grid(row=6, column=2, sticky="e", padx=8, pady=10)
 
         self.progress = ttk.Progressbar(frm, orient="horizontal", mode="determinate")
-        self.progress.grid(row=5, column=1, columnspan=2, sticky="we", padx=8, pady=10)
+        self.progress.grid(row=7, column=0, columnspan=3, sticky="we", padx=8, pady=10)
 
-        self.log = tk.Text(frm, height=20)
-        self.log.grid(row=6, column=0, columnspan=3, sticky="nsew", padx=8, pady=8)
+        self.log = tk.Text(
+            frm,
+            height=20,
+            bg="#111821",
+            fg="#d9e0ea",
+            insertbackground="#d9e0ea",
+            relief="flat",
+            borderwidth=1,
+            highlightthickness=1,
+            highlightbackground="#2a3445",
+            highlightcolor="#4f8cff",
+        )
+        self.log.grid(row=8, column=0, columnspan=3, sticky="nsew", padx=8, pady=8)
 
         frm.grid_columnconfigure(1, weight=1)
-        frm.grid_rowconfigure(6, weight=1)
+        frm.grid_rowconfigure(8, weight=1)
 
     def pick_folder(self):
         folder = filedialog.askdirectory()
         if folder:
             self.folder_var.set(folder)
+
+    def _form_payload(self, include_secret=False):
+        payload = {
+            "folder": self.folder_var.get(),
+            "bucket": self.bucket_var.get(),
+            "endpoint": self.endpoint_var.get(),
+            "access_key_id": self.key_var.get(),
+        }
+        if include_secret:
+            payload["secret_access_key"] = self.secret_var.get()
+        return payload
+
+    def save_form_data(self):
+        path = filedialog.asksaveasfilename(
+            title="Guardar configuración",
+            defaultextension=".json",
+            filetypes=[("JSON", "*.json"), ("Todos los archivos", "*.*")],
+        )
+        if not path:
+            return
+        try:
+            include_secret = messagebox.askyesno(
+                "Guardar credenciales",
+                "¿Deseas guardar también la Secret Access Key?\n\n"
+                "ADVERTENCIA: si eliges \"Sí\", se guardará en texto plano dentro del archivo.",
+            )
+            with open(path, "w", encoding="utf-8") as f:
+                json.dump(self._form_payload(include_secret=include_secret), f, indent=2, ensure_ascii=False)
+            if include_secret:
+                try:
+                    os.chmod(path, 0o600)
+                except OSError:
+                    if os.name == "nt":
+                        messagebox.showwarning(
+                            "Aviso de seguridad",
+                            "Windows puede no aplicar permisos restrictivos equivalentes a 0600.\n"
+                            "Evita compartir este archivo y guárdalo en una ubicación segura.",
+                        )
+                    messagebox.showwarning(
+                        "Aviso de seguridad",
+                        "No fue posible aplicar permisos restrictivos al archivo guardado.\n"
+                        "Revísalo manualmente antes de compartirlo.",
+                    )
+                    self.log_line("Aviso: no fue posible aplicar permisos restrictivos al archivo guardado.")
+            self.log_line(f"Configuración guardada en: {path}")
+        except Exception as e:
+            messagebox.showerror("Error", f"No se pudo guardar la configuración:\n{e}")
+
+    def load_form_data(self):
+        path = filedialog.askopenfilename(
+            title="Cargar configuración",
+            filetypes=[("JSON", "*.json"), ("Todos los archivos", "*.*")],
+        )
+        if not path:
+            return
+        try:
+            with open(path, "r", encoding="utf-8") as f:
+                data = json.load(f)
+            self.folder_var.set(data.get("folder", ""))
+            self.bucket_var.set(data.get("bucket", ""))
+            self.endpoint_var.set(data.get("endpoint", ""))
+            self.key_var.set(data.get("access_key_id", ""))
+            if "secret_access_key" in data and data["secret_access_key"]:
+                use_secret = messagebox.askyesno(
+                    "Cargar credenciales",
+                    "El archivo contiene Secret Access Key guardada.\n"
+                    "¿Deseas cargarla en el formulario?",
+                )
+                if use_secret:
+                    self.secret_var.set(data["secret_access_key"])
+            self.log_line(f"Configuración cargada desde: {path}")
+        except Exception as e:
+            messagebox.showerror("Error", f"No se pudo cargar la configuración:\n{e}")
 
     def log_line(self, msg):
         self.log.insert("end", msg + "\n")
@@ -153,7 +294,12 @@ class R2UploaderGUI:
 
             for i, (full_path, key_name) in enumerate(to_upload, start=1):
                 self.log_line(f"[{i}/{total}] Subiendo {key_name}")
-                client.upload_file(full_path, bucket, key_name)
+                extension = Path(full_path).suffix.lower()
+                content_type = EXTRA_MIME.get(extension)
+                if not content_type:
+                    guessed_type, _ = mimetypes.guess_type(full_path)
+                    content_type = guessed_type or "application/octet-stream"
+                client.upload_file(full_path, bucket, key_name, ExtraArgs={"ContentType": content_type})
                 self.progress["value"] = i
                 self.root.update_idletasks()
 
